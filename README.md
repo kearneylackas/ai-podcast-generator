@@ -14,14 +14,23 @@ Two stages, so you can review the script before making audio:
 
 | Command | Does | Needs |
 |---|---|---|
-| `script report.md [--minutes 12] [--note "..."]` | Claude writes the dialogue (`ALEX:` / `SAM:` paragraphs) | Anthropic credentials (`ANTHROPIC_API_KEY` or `ant auth login`) |
+| `script report.md [--style story\|briefing] [--minutes 12] [--note "..."]` | Claude writes the dialogue (`ALEX:` / `SAM:` paragraphs) | Anthropic credentials (`ANTHROPIC_API_KEY` or `ant auth login`) |
 | `audio episode.txt [--report report.md]` | Speaks it with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M), locally on CPU, then ffmpeg to MP3 | Nothing external after the one-time model download (~330 MB) |
 | `make report.md` | Both | Both |
 
+- **Style.** `story` (default) opens on the most surprising finding and builds the episode around three
+  to five stories from the report, with a host who reacts and asks "so what?". `briefing` is a straight
+  read-out of the findings.
+- **Background.** The script may explain concepts the report relies on (how a wheel works, what TRL or
+  qualification means, why micro-vibration matters) from general knowledge. Background never names a
+  company or product or gives a market figure, sits under a `# background` marker line so you can see
+  what isn't from the report, and is capped at about a fifth of the episode. Market facts still come
+  only from the report.
 - For a `market-studies/<category>/<date>/report.md`, the study's row in `market-studies/index.md` is
   passed along automatically, so a correction recorded there (a ⚠️ note) is respected.
-- After the script is written, every number in it is checked against the report and any that do not
-  appear are listed. It catches invented figures, not a real figure attached to the wrong product —
+- After the script is written, every number in its report-sourced turns is checked against the report
+  and any that do not appear are listed; the background share is reported, and numbers inside
+  background turns are listed for a look. It catches invented figures, not a real figure attached to the wrong product —
   read the script before relying on it.
 - Voices: `--voice ALEX=bm_george --voice SAM=bf_emma` (any Kokoro voice). `--speed 1.1` to go faster.
 - Runs at roughly real time on a 4-core CPU: a 10-minute episode takes about 10 minutes.

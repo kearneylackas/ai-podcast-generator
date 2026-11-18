@@ -38,40 +38,75 @@ SPEAKERS = ("ALEX", "SAM")
 DEFAULT_VOICES = {"ALEX": "am_michael", "SAM": "af_heart"}  # Kokoro American English voices
 SAMPLE_RATE = 24000  # Kokoro's output rate
 
-SYSTEM_PROMPT = """\
-You turn a written market-intelligence report into the script for a short two-person audio episode.
+COMMON_RULES = """\
+You turn a written market-intelligence report into the script for a two-person audio episode.
 
 The speakers:
-- ALEX hosts. Asks the questions a busy listener would ask, keeps it moving, summarises.
+- ALEX hosts. Asks what a smart listener from outside the niche would ask, reacts, pushes for the
+  "so what", and summarises.
 - SAM has read the report closely and explains what it found.
 
 Accuracy is the point of this episode. The listener will act on it, and cannot see the page.
-- Say only what the report says. Every fact, number, name, date and judgment must come from the
-  report text you are given. Do not add background knowledge, other vendors, predictions or advice.
-  If the report does not say something, the speakers do not say it.
-- Keep the report's evidence labels. Where it marks a claim flight-proven or roadmap (announced,
-  qualified but not flown, vendor-claimed, unconfirmed), say which, every time that claim comes up.
-  "Qualified, not flown" must not become "proven".
-- Keep the report's hedges. A vendor's own description stays attributed to the vendor ("the vendor
-  calls it..."). Do not upgrade a claim, and do not soften a caveat or a correction.
-- Keep dates. Open by saying what the report is and the date it was compiled, and treat it as a
-  snapshot as of that date, not as live news.
-- If you are given a correction note about this report, follow it: do not repeat a claim it says is
-  withdrawn or superseded, and mention the correction where it matters.
-- Neutral register. The report is written from no vendor's chair; so is the episode. No ranking
-  beyond what the report states, no sales language, no recommendations to buy or avoid anyone.
+
+Two kinds of content are allowed, and they are kept apart.
+
+1. MARKET FACTS come only from the report (and any correction note or extra note you are given).
+   Every company, product, number, date, contract, failure, judgment and comparison must be in that
+   text. If the report does not say it, the speakers do not say it.
+   - Keep the report's evidence labels. Where it marks a claim flight-proven or roadmap (announced,
+     qualified but not flown, vendor-claimed, unconfirmed), say which whenever that claim comes up.
+     "Qualified, not flown" must not become "proven".
+   - Keep the report's hedges. A vendor's own description stays attributed to the vendor. Do not
+     upgrade a claim or soften a caveat or correction.
+   - Treat the report as a snapshot as of its compile date, not as live news.
+   - If you are given a correction note, do not repeat a claim it says is withdrawn or superseded.
+   - Neutral register: no ranking beyond the report's, no sales language, no buy/avoid advice.
+
+2. BACKGROUND may come from general engineering knowledge, to explain a concept the report relies on:
+   how the hardware works, what a term means (momentum, torque, TRL, qualification), why a property
+   matters to a spacecraft. Rules for background:
+   - It explains concepts only. It never names a company, product, programme or mission, never gives
+     a market figure, price, date or count, and never says anything about who leads or what is new.
+   - Only settled textbook knowledge. If you are not sure it is true, leave it out.
+   - Put a line containing exactly "# background" immediately above every turn that contains
+     background. Such a turn may still mention report facts, but nothing else outside the report.
+   - Keep background to about a fifth of the episode at most. It serves the findings; it is not a
+     lecture.
 
 Make it sound like speech:
-- Spell out units and symbols as they are spoken: "newton-metre-seconds" not "N·m·s",
-  "3 sigma" not "3σ", "arc-seconds" not "″", "watt-hours per kilogram" not "Wh/kg", "about" not "~".
-  Keep numbers as digits ("1.2", "125", "2026").
-- No markdown, no bullet points, no headings, no file paths or commit hashes, no table read-outs.
-  Pick the few figures that carry the finding; a listener retains three numbers per topic, not ten.
-- Short turns, natural back-and-forth, no filler banter, no jokes at anyone's expense.
-- End with a recap of the main findings, and say once more what date they are as of.
+- Spell out units and symbols as spoken: "newton-metre-seconds" not "N·m·s", "3 sigma" not "3σ",
+  "arc-seconds" not "″", "watt-hours per kilogram" not "Wh/kg", "about" not "~". Numbers stay digits.
+- No markdown, bullets, headings, file paths, commit hashes or section numbers. No table read-outs.
+- Short turns, natural back-and-forth.
 
-Output only the script: one turn per paragraph, each starting with "ALEX:" or "SAM:", nothing else.
+Output only the script: one turn per paragraph, each starting with "ALEX:" or "SAM:", plus the
+"# background" marker lines. Nothing else.
 """
+
+STYLE_PROMPTS = {
+    "story": """\
+Style: a story-led episode, lively but not breezy.
+- Cold open: ALEX starts with the single most surprising or consequential finding, as a question
+  or a tension, before saying what the report is. Then one line on what the report is and its date.
+- Build the episode around three to five stories the report supports: a tension, an upset, a
+  puzzle, a cautionary tale, something that has been "coming soon" for years. Tell each one with a
+  beginning, a turn and a consequence, and end it on why it matters, in the report's own terms.
+- About three numbers per story. Choose the ones that carry the point; drop the rest.
+- ALEX is curious and a little sceptical: reacts ("hang on, so the best spec on paper hasn't
+  flown?"), pushes back, asks what it means for someone buying. SAM answers with the evidence and
+  says plainly where the report says the evidence runs out.
+- Warmth and light humour are fine, aimed at situations, never at a company or person, and never at
+  the cost of a hedge.
+- Close with a short recap of the stories, and the date they are as of.
+""",
+    "briefing": """\
+Style: a straight briefing.
+- Open by saying what the report is and its compile date.
+- Walk the main findings in order of importance, with the few figures that carry each one.
+- Plain, efficient turns; little background.
+- End with a recap of the main findings and the date they are as of.
+""",
+}
 
 
 # --------------------------------------------------------------------------- script stage
@@ -93,7 +128,7 @@ def find_index_note(report: Path) -> str | None:
     return None
 
 
-def write_script(report: Path, minutes: int, notes: list[str], effort: str) -> str:
+def write_script(report: Path, minutes: int, notes: list[str], effort: str, style: str) -> str:
     import anthropic
 
     text = report.read_text(encoding="utf-8")
@@ -117,7 +152,7 @@ def write_script(report: Path, minutes: int, notes: list[str], effort: str) -> s
     with client.beta.messages.stream(
         model=MODEL,
         max_tokens=32000,
-        system=SYSTEM_PROMPT,
+        system=COMMON_RULES + "\n" + STYLE_PROMPTS[style],
         thinking={"type": "adaptive"},
         output_config={"effort": effort},
         # On a policy decline, the API retries on a fallback model inside the same call.
@@ -146,14 +181,25 @@ def write_script(report: Path, minutes: int, notes: list[str], effort: str) -> s
 NUMBER = re.compile(r"(?<![\w.])\d+(?:[.,]\d+)*")
 
 
-def unsupported_numbers(script: str, source: str) -> list[str]:
-    """Numbers spoken in the script that never appear in the source text.
+def split_background(script: str) -> tuple[str, str]:
+    """Split a script into (report-sourced turns, background turns) by the '# background' marker."""
+    sourced, background = [], []
+    for para in re.split(r"\n\s*\n", script):
+        lines = para.strip().splitlines()
+        is_bg = any(l.strip().lower() == "# background" for l in lines)
+        spoken = "\n".join(l for l in lines if not l.lstrip().startswith("#"))
+        if spoken:
+            (background if is_bg else sourced).append(spoken)
+    return "\n\n".join(sourced), "\n\n".join(background)
+
+
+def unsupported_numbers(spoken: str, source: str) -> list[str]:
+    """Numbers in spoken text that never appear in the source text.
 
     A cheap tripwire for invented figures. It cannot catch a real number attached to the wrong
     product, so it does not replace reading the script; it only points at where to look first.
     """
     source_nums = {n.replace(",", "") for n in NUMBER.findall(source)}
-    spoken = "\n".join(l for l in script.splitlines() if not l.startswith("#"))
     missing = []
     for n in NUMBER.findall(spoken):
         n = n.replace(",", "")
@@ -167,15 +213,25 @@ def check_script(script: str, report: Path) -> None:
     note = find_index_note(report)
     if note:
         source += "\n" + note
-    missing = unsupported_numbers(script, source)
+    sourced, background = split_background(script)
+    missing = unsupported_numbers(sourced, source)
     if missing:
-        print(
-            "WARNING: these numbers are in the script but not in the report — check them: "
-            + ", ".join(missing),
-            file=sys.stderr,
-        )
+        print("WARNING: these numbers are in the script but not in the report — check them: "
+              + ", ".join(missing), file=sys.stderr)
     else:
-        print("Number check: every number in the script appears in the report.", file=sys.stderr)
+        print("Number check: every number in the report-sourced turns appears in the report.",
+              file=sys.stderr)
+    total = len(sourced.split()) + len(background.split())
+    if background:
+        share = len(background.split()) / total
+        print(f"Background: {share:.0%} of spoken words are marked '# background' "
+              "(general knowledge, not from the report).", file=sys.stderr)
+        if share > 0.3:
+            print("WARNING: background is over 30% of the episode.", file=sys.stderr)
+        bg_nums = [n for n in NUMBER.findall(background)]
+        if bg_nums:
+            print("NOTE: background turns contain numbers — check they are textbook, not market "
+                  "figures: " + ", ".join(dict.fromkeys(bg_nums)), file=sys.stderr)
 
 
 # --------------------------------------------------------------------------- audio stage
@@ -281,11 +337,13 @@ def main() -> None:
         p.add_argument("--note", action="append", default=[],
                        help="extra instruction for the script writer, e.g. a correction (repeatable)")
         p.add_argument("--effort", default="high", choices=["low", "medium", "high", "xhigh", "max"])
+        p.add_argument("--style", default="story", choices=sorted(STYLE_PROMPTS),
+                       help="story (default): built around a few stories; briefing: straight read-out")
 
     def audio_args(p):
         p.add_argument("--voice", action="append", default=[], metavar="SPEAKER=VOICE",
                        help=f"override a voice, e.g. ALEX=bm_george (defaults: {DEFAULT_VOICES})")
-        p.add_argument("--speed", type=float, default=1.0)
+        p.add_argument("--speed", type=float, default=1.08)
 
     p = sub.add_parser("script", help="report.md -> episode.txt")
     script_args(p)
@@ -315,7 +373,7 @@ def main() -> None:
         out_txt = (args.out.with_suffix(".txt") if args.out
                    else default_stem(args.report).with_suffix(".txt"))
         print(f"Writing script for {args.report} ...", file=sys.stderr)
-        script = write_script(args.report, args.minutes, args.note, args.effort)
+        script = write_script(args.report, args.minutes, args.note, args.effort, args.style)
         out_txt.parent.mkdir(parents=True, exist_ok=True)
         out_txt.write_text(script, encoding="utf-8")
         print(f"Script: {out_txt} ({len(script.split())} words)", file=sys.stderr)
