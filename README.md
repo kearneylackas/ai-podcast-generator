@@ -32,8 +32,8 @@ Two stages, so you can review the script before making audio:
   and any that do not appear are listed; the background share is reported, and numbers inside
   background turns are listed for a look. It catches invented figures, not a real figure attached to the wrong product —
   read the script before relying on it.
-- Voices: `--voice ALEX=bm_george --voice SAM=bf_emma` (any Kokoro voice). `--speed 1.1` to go faster.
-- Runs at roughly real time on a 4-core CPU: a 10-minute episode takes about 10 minutes.
+- Voices: `--voice ALEX=bm_george --voice SAM=bf_emma` (any Kokoro voice). Speaking rate defaults to `--speed 1.5`; lower it for a slower read.
+- Synthesis runs at roughly real time on a 4-core CPU.
 - Only the script stage sends text off the machine (to the Claude API). Don't feed it material you
   wouldn't send there.
 

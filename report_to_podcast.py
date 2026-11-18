@@ -33,7 +33,7 @@ import tempfile
 from pathlib import Path
 
 MODEL = "claude-opus-5-5"
-WORDS_PER_MINUTE = 150
+WORDS_PER_MINUTE = 210  # at the default --speed 1.5; --minutes means listening time
 SPEAKERS = ("ALEX", "SAM")
 DEFAULT_VOICES = {"ALEX": "am_michael", "SAM": "af_heart"}  # Kokoro American English voices
 SAMPLE_RATE = 24000  # Kokoro's output rate
@@ -301,7 +301,7 @@ def make_audio(episode: str, out: Path, voices: dict[str, str], speed: float) ->
             voices[s] = spare.pop(0) if spare else next(iter(voices.values()))
 
     pipeline = KPipeline(lang_code="a", repo_id="hexgrad/Kokoro-82M")
-    gap = np.zeros(int(SAMPLE_RATE * 0.35), dtype=np.float32)
+    gap = np.zeros(int(SAMPLE_RATE * 0.35 / speed), dtype=np.float32)
     pieces = []
     for i, (spk, text) in enumerate(turns, 1):
         print(f"  [{i}/{len(turns)}] {spk}", file=sys.stderr)
@@ -343,7 +343,8 @@ def main() -> None:
     def audio_args(p):
         p.add_argument("--voice", action="append", default=[], metavar="SPEAKER=VOICE",
                        help=f"override a voice, e.g. ALEX=bm_george (defaults: {DEFAULT_VOICES})")
-        p.add_argument("--speed", type=float, default=1.08)
+        p.add_argument("--speed", type=float, default=1.5,
+                       help="speaking rate; 1.0 is Kokoro's natural pace (default 1.5)")
 
     p = sub.add_parser("script", help="report.md -> episode.txt")
     script_args(p)
