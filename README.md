@@ -1,3 +1,43 @@
+# Report to podcast (market reports, local TTS)
+
+`report_to_podcast.py` turns a written report — e.g. a market study from `space-market-intel` — into a
+two-voice audio briefing. Unlike the original generator below, it **reads the document** and is told to
+say only what the report says, keeping its flight-proven / roadmap labels, hedges and dates.
+
+```
+python report_to_podcast.py make ../space-market-intel/market-studies/reaction-wheel/2026-09-30/report.md
+# -> episodes/reaction-wheel-2026-09-30.txt  (script: read and edit it)
+# -> episodes/reaction-wheel-2026-09-30.mp3  (audio)
+```
+
+Two stages, so you can review the script before making audio:
+
+| Command | Does | Needs |
+|---|---|---|
+| `script report.md [--minutes 12] [--note "..."]` | Claude writes the dialogue (`ALEX:` / `SAM:` paragraphs) | Anthropic credentials (`ANTHROPIC_API_KEY` or `ant auth login`) |
+| `audio episode.txt [--report report.md]` | Speaks it with [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M), locally on CPU, then ffmpeg to MP3 | Nothing external after the one-time model download (~330 MB) |
+| `make report.md` | Both | Both |
+
+- For a `market-studies/<category>/<date>/report.md`, the study's row in `market-studies/index.md` is
+  passed along automatically, so a correction recorded there (a ⚠️ note) is respected.
+- After the script is written, every number in it is checked against the report and any that do not
+  appear are listed. It catches invented figures, not a real figure attached to the wrong product —
+  read the script before relying on it.
+- Voices: `--voice ALEX=bm_george --voice SAM=bf_emma` (any Kokoro voice). `--speed 1.1` to go faster.
+- Runs at roughly real time on a 4-core CPU: a 10-minute episode takes about 10 minutes.
+- Only the script stage sends text off the machine (to the Claude API). Don't feed it material you
+  wouldn't send there.
+
+Setup (Python 3.10–3.12, plus `ffmpeg`):
+
+```
+python3.12 -m venv venv && source venv/bin/activate
+pip install --index-url https://download.pytorch.org/whl/cpu torch
+pip install -r requirements-report.txt
+```
+
+---
+
 # AI-Podcast-Generator
 
 AI Podcast Generator is a AI powered software that automatically generates podcast scripts and audio from text files. This tool leverages [Marvin](https://github.com/PrefectHQ/marvin) for text generation and [Play.ht API](https://docs.play.ht/reference/api-getting-started) for text-to-speech conversion. The generated audio clips are then merged using [pydub](https://github.com/jiaaro/pydub) to create the final podcast output.

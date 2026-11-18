@@ -1,0 +1,7 @@
+# For report_to_podcast.py. Python 3.10-3.12 (Kokoro's spaCy dependency does not build on 3.13 yet).
+# Install the CPU build of torch first to avoid a multi-GB CUDA download:
+#   pip install --index-url https://download.pytorch.org/whl/cpu torch
+anthropic>=2.10
+kokoro>=0.9
+soundfile
+numpy
